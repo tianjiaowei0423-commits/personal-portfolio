@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Annual Report Analyzer | Tianjiao Wei</title>
+  <meta name="description" content="Case study: an AI-assisted tool that extracts figures from annual reports, checks them against a hand-built answer key, and turns them into credit ratios and summaries.">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="nav">
+    <a class="logo" href="index.html">TW</a>
+    <nav>
+      <a href="#problem">Problem</a>
+      <a href="#how">How it works</a>
+      <a href="#results">Results</a>
+      <a href="#judgement">Judgement calls</a>
+      <a href="#limits">Limits</a>
+    </nav>
+    <button id="theme" aria-label="Toggle dark mode">◐</button>
+  </header>
+
+  <main id="top" class="case">
+    <section class="hero">
+      <a class="back" href="index.html#projects">&larr; Back to Tianjiao Wei</a>
+      <p class="eyebrow" style="margin-top:24px">Personal project &middot; November 2026</p>
+      <h1>Annual Report Analyzer</h1>
+      <p class="lead">An AI-assisted tool that reads 200+ page annual reports, extracts the figures a credit analyst needs, checks every figure against its source page, and turns them into ratios, a 2024–2025 trend and a short credit view per company.</p>
+      <div class="cta">
+        <a class="btn primary" href="https://github.com/tianjiaowei0423-commits/annual-report-analyzer" target="_blank" rel="noopener">Code on GitHub</a>
+        <a class="btn" href="https://github.com/tianjiaowei0423-commits/annual-report-analyzer/blob/main/output/credit_summaries.md" target="_blank" rel="noopener">Read the credit summaries</a>
+      </div>
+      <ul class="stats">
+        <li><strong>56/56</strong><span>2025 figures match a hand-built answer key</span></li>
+        <li><strong>~10 of 200+</strong><span>pages sent to the model per report</span></li>
+        <li><strong>9</strong><span>credit ratios, 4 companies, 2 years</span></li>
+        <li><strong>~USD 0.05</strong><span>model cost per report</span></li>
+      </ul>
+    </section>
+
+    <section id="problem">
+      <h2>The problem</h2>
+      <p>Before a credit analyst can judge a company, someone has to take the figures out of its annual report and put them into a standard format. In banking this is called financial spreading. During my internship in the risk team at Industrial Bank, I assessed the financial statements of corporate loan applicants, and getting the figures right came before any judgement.</p>
+      <p>I wanted to find out how much of this step AI can do reliably, and how you would know. Doing it by hand for three reports took me 42 to 60 minutes each, and the hard part was not reading the numbers but choosing the right ones: consolidated, not parent company; the total, not the share attributable to owners; interest on debt, not all financial costs.</p>
+      <p>Test set: four Danish-listed shipping companies with different business models: DFDS (ferries and logistics), Maersk (container shipping), Norden (dry bulk and tankers) and TORM (product tankers).</p>
+    </section>
+
+    <section id="how">
+      <h2>How it works</h2>
+      <ol class="steps">
+        <li><b>Find the pages.</b> A report is too long to send whole, so <code>extract.py</code> scores every page on keywords and keeps about ten: the three main statements, key figures, and the notes on interest and staff. It skips the parent company statements, which look identical to the consolidated ones.</li>
+        <li><b>Extract the figures.</b> Only those pages go to the Claude API, with extraction rules I wrote from the mistakes I found doing it by hand. The model returns 14 figures, each with its unit, the page it came from and a note on how it was found.</li>
+        <li><b>Check every figure.</b> <code>compare.py</code> compares the figures with my hand-built answer key, and opens each cited page to confirm the number is printed there. For 2024 it also flags any figure equal to the 2025 value, a sign the wrong column was read.</li>
+        <li><b>Calculate.</b> <code>analyze.py</code> turns the figures into 9 credit ratios, ranks the companies and works out whether each ratio got better or worse since 2024. This is plain Python, with no model involved.</li>
+        <li><b>Write and check the credit view.</b> <code>summarize.py</code> gives the model only the ratio table, the rankings and the trend, and asks for a short credit view per company. Every number in the text is then checked against the table.</li>
+      </ol>
+      <p>The principle behind the design: the model does what needs judgement on text, reading a statement and writing a summary. Everything that can be calculated or checked is done in code.</p>
+    </section>
+
+    <section id="results">
+      <h2>Results</h2>
+      <p><b>Accuracy.</b> All 56 figures for 2025 matched my answer key, and every cited page showed the figure. TORM was added only after the rules were built on the other three, as a blind test; all 14 values were correct on the first run. The 2024 figures, which have no answer key yet, all passed the page check and none equalled the 2025 value.</p>
+
+      <p><b>Credit ratios, 2025.</b> Only ratios are compared, because DFDS reports in DKK and the others in USD.</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Ratio</th><th>DFDS</th><th>Maersk</th><th>Norden</th><th>TORM</th></tr></thead>
+          <tbody>
+            <tr><td>EBITDA margin</td><td>12.1%</td><td>17.7%</td><td>14.5%</td><td>42.6%</td></tr>
+            <tr><td>EBIT margin</td><td>1.7%</td><td>6.5%</td><td>5.1%</td><td>26.6%</td></tr>
+            <tr><td>Net debt / EBITDA (common definition)</td><td class="bad">4.1x</td><td>1.0x</td><td>0.8x</td><td>1.5x</td></tr>
+            <tr><td>Interest cover (EBIT / interest)</td><td class="bad">0.7x</td><td>3.1x</td><td>4.3x</td><td>5.2x</td></tr>
+            <tr><td>Equity ratio</td><td>36.2%</td><td>64.2%</td><td>53.9%</td><td>65.4%</td></tr>
+            <tr><td>FCF margin (OCF &minus; capex)</td><td>5.6%</td><td>9.2%</td><td class="bad">&minus;8.1%</td><td>14.1%</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p><b>Trend, 2024 to 2025.</b> On most ratios all four companies were weaker in 2025. The changes that matter most for credit:</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th></th><th>Interest cover</th><th>Net debt / EBITDA</th><th>EBIT margin</th></tr></thead>
+          <tbody>
+            <tr><td>DFDS</td><td>1.8x &rarr; 0.7x</td><td>3.9x &rarr; 4.1x</td><td>5.1% &rarr; 1.7%</td></tr>
+            <tr><td>Maersk</td><td>6.5x &rarr; 3.1x</td><td>0.8x &rarr; 1.0x</td><td>11.7% &rarr; 6.5%</td></tr>
+            <tr><td>Norden</td><td>4.8x &rarr; 4.3x</td><td>0.5x &rarr; 0.8x</td><td>5.0% &rarr; 5.1%</td></tr>
+            <tr><td>TORM</td><td>9.4x &rarr; 5.2x</td><td>1.1x &rarr; 1.5x</td><td>42.3% &rarr; 26.6%</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>Margins fell at three of the four companies at the same time, across different segments of shipping, which points to the market as much as to the companies themselves. Norden is the exception on margins, but its capex rose to 20.2% of revenue and its leverage went up with it.</p>
+
+      <p><b>Credit summary.</b> An example headline the tool wrote, checked number by number:</p>
+      <blockquote>DFDS has the highest leverage of the four at 4.1x net debt / EBITDA, and EBIT does not cover interest after interest cover fell from 1.8x to 0.7x.</blockquote>
+    </section>
+
+    <section id="judgement">
+      <h2>Judgement calls</h2>
+
+      <div class="lesson">
+        <h3>Finding the right page is a balance</h3>
+        <p>My first keyword rules were too broad and picked up the parent company statements; the next ones were too strict and dropped the correct interest note because it also mentioned pensions. I tuned the rules on real reports until they chose the right pages, then tested them on TORM, which they had never seen. That test exposed one more weakness, a segment note that repeats balance sheet lines, which I fixed and re-tested on all four.</p>
+      </div>
+
+      <div class="lesson">
+        <h3>Same name, different number</h3>
+        <p>Each company defines free cash flow and net debt in its own way. At Norden, reported free cash flow is positive (USD 170.4m) while operating cash flow minus capex is negative (USD &minus;251.9m). Maersk reports net cash, because it also deducts securities and receivables; on a common definition of debt minus cash, it has net debt of 1.0x EBITDA. I put both on one common definition and kept the reported figure next to it, so the comparison is like for like.</p>
+      </div>
+
+      <div class="lesson">
+        <h3>Correct numbers, wrong reasoning</h3>
+        <p>The automatic number check passed, but reading the summaries myself I found errors it could not catch: interest cover of 0.7x described as if it nearly covered interest, a ratio compared with an amount, and a comparison between two companies that was simply wrong. Rules in the prompt fixed the first kind. For the comparisons I changed approach: rankings and the direction of each change are now worked out in code, and the model may only use them. My takeaway is that where a person finds an error that code can prevent, the fix belongs in the code, and the reasoning still needs a person to read it.</p>
+      </div>
+    </section>
+
+    <section id="limits">
+      <h2>Limits and next steps</h2>
+      <ul>
+        <li><b>A small test set.</b> Four companies, one sector, 14 figures each. Bank spreading templates have far more line items, and reports from other sectors may need new rules.</li>
+        <li><b>2024 has no answer key yet.</b> The checks confirm each figure is printed in the report and is not the 2025 value, but not that it is the right line item. Next: hand-extract one company for 2024.</li>
+        <li><b>Two years only.</b> Enough to show a direction, not a cycle; shipping earnings move with freight rates.</li>
+      </ul>
+      <p><b>Tools:</b> Python (pandas, pypdf), the Claude API for extraction and writing, Git and GitHub. I used Claude as a coding assistant; I built the answer key by hand and reviewed every output myself.</p>
+    </section>
+
+    <section class="contact">
+      <h2>Questions about the project?</h2>
+      <p>I'm happy to walk through how it works and what I would build next.</p>
+      <div class="cta">
+        <a class="btn primary" href="mailto:TianjiaoWei0423@gmail.com">TianjiaoWei0423@gmail.com</a>
+        <a class="btn" href="index.html">Back to main page</a>
+      </div>
+    </section>
+  </main>
+
+  <footer>&copy; <span id="year"></span> Tianjiao Wei &middot; Copenhagen</footer>
+  <script src="script.js"></script>
+</body>
+</html>
